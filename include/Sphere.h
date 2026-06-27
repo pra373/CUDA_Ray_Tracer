@@ -1,7 +1,7 @@
-#include "Vector3.h"
-
 #ifndef SPHERE_H
 #define SPHERE_H
+
+#include "Vector3.h"
 
 #define INF 2e10f
 
@@ -21,6 +21,8 @@ public:
 		color = col;
 		radius = r;
 	}
+
+	__device__ float hit(float ox, float oy, float* n);
 
 	Vector3 getPosition(void) const
 	{

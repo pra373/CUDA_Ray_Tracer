@@ -1,5 +1,7 @@
 *.o
 *.out
 *.exe
+*.lib
+*.exp
 build/
 .vscode/
