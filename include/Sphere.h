@@ -22,7 +22,7 @@ public:
 		radius = r;
 	}
 
-	__device__ float hit(float ox, float oy, float* n);
+	__device__ float hit(float , float , float*);
 
 	Vector3 getPosition(void) const
 	{

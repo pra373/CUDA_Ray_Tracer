@@ -2,9 +2,9 @@
 
 cls
 
-echo Building ____________ CUDA Ray Tracer _____________
+echo  ____________ Building CUDA Ray Tracer _____________
 
-nvcc src/main.cu -I include -o RayTracer.exe
+nvcc src/Main.cu -I include -o RayTracer.exe
 
 if %errorlevel% neq 0 (
 
