@@ -4,7 +4,7 @@ cls
 
 echo  ____________ Building CUDA Ray Tracer _____________
 
-nvcc src/Main.cu -I include -o RayTracer.exe
+nvcc src/Main.cu src/Kernel.cu -I include -o RayTracer.exe
 
 if %errorlevel% neq 0 (
 
@@ -16,4 +16,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo ________________ Build Successfull _____________
+
+RayTracer.exe
+
 pause

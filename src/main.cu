@@ -1,21 +1,26 @@
 #include<iostream>
+#include<string>
 #include<cuda.h>
+#include<cuda_runtime.h>
 #include <fstream>
 #include<Sphere.h>
+#include<Kernel.h>
 
 
 using std::cout;
 using std::endl;
+using std::string;
 
 #define NUMBER_OF_SPHERES 20
 #define rnd( x ) (x * rand() / RAND_MAX)
 
-#define IMAGE_WIDTH 1024
-#define IMAGE_HEIGHT 1024
+#define IMAGE_WIDTH 3840
+#define IMAGE_HEIGHT 2160
 
 //function declarations
 
 void saveImagePPM(const char*, unsigned char*, int, int);
+void printCudaDeviceSpecs(void);
 
 int main(void)
 {	
@@ -30,6 +35,8 @@ int main(void)
 	// CUDA related variables
 
 	cudaError_t error;
+
+	printCudaDeviceSpecs();
 
 	try
 	{
@@ -122,7 +129,17 @@ int main(void)
 		exit(0);
 	}
 
-	// TODO: kernel will be called here and fill the image.
+	// decide the grid properties
+
+	dim3 blockDim(32, 32);
+	dim3 gridDim(
+		(IMAGE_WIDTH + blockDim.x - 1) / blockDim.x,
+		(IMAGE_HEIGHT + blockDim.y - 1) / blockDim.y
+	);
+
+	// call the kernel
+
+	ComputeRayTracingImage<<<gridDim, blockDim>>>(imagePointer_dev, arrayOfSpheres_device, IMAGE_WIDTH, IMAGE_HEIGHT);
 
 	// Copy rendered image from GPU memory back to CPU memory
 
@@ -135,7 +152,7 @@ int main(void)
 		exit(0);
 	}
 
-	saveImagePPM("OutputImage", imagePointer_host, IMAGE_WIDTH, IMAGE_HEIGHT);
+	saveImagePPM("OutputImage.ppm", imagePointer_host, IMAGE_WIDTH, IMAGE_HEIGHT);
 
 	// free allocated memory
 
@@ -153,7 +170,10 @@ int main(void)
 
 void saveImagePPM(const char* filename, unsigned char* image, int width, int height)
 {
-	std::ofstream file(filename);
+
+	string imagePath = "D:\\CUDA_Ray_Tracer\\OutputImage\\Ray_Traced_Spheres.ppm";
+
+	std::ofstream file(imagePath, std::ios::binary);
 
 	if (!file)
 	{
@@ -187,4 +207,70 @@ void saveImagePPM(const char* filename, unsigned char* image, int width, int hei
 	file.close();
 
 	std::cout << "Image saved successfully!" << std::endl;
+}
+
+void printCudaDeviceSpecs(void)
+{
+	int deviceCount = 0;
+	cudaError_t error = cudaGetDeviceCount(&deviceCount);
+
+	if (error != cudaSuccess)
+	{
+		cout << "Failed to query CUDA devices: " << cudaGetErrorString(error) << endl;
+		return;
+	}
+
+	if (deviceCount == 0)
+	{
+		cout << "No CUDA-capable GPU found." << endl;
+		return;
+	}
+
+	int currentDevice = 0;
+	error = cudaGetDevice(&currentDevice);
+
+	if (error != cudaSuccess)
+	{
+		cout << "Failed to get current CUDA device: " << cudaGetErrorString(error) << endl;
+		return;
+	}
+
+	cout << "========== CUDA Device Specs (for grid/block sizing) ==========" << endl;
+	cout << "Device count: " << deviceCount << endl;
+	cout << "Active device index: " << currentDevice << endl;
+
+	for (int device = 0; device < deviceCount; device++)
+	{
+		cudaDeviceProp properties;
+		error = cudaGetDeviceProperties(&properties, device);
+
+		if (error != cudaSuccess)
+		{
+			cout << "Failed to read properties for device " << device << ": "
+				<< cudaGetErrorString(error) << endl;
+			continue;
+		}
+
+		cout << "--------------------------------------------------------------" << endl;
+		cout << "Device " << device << ": " << properties.name << endl;
+		cout << "Compute capability: " << properties.major << "." << properties.minor << endl;
+		cout << "Multiprocessors (SMs): " << properties.multiProcessorCount << endl;
+		cout << "Warp size: " << properties.warpSize << endl;
+		cout << "Max threads per block: " << properties.maxThreadsPerBlock << endl;
+		cout << "Max block dimensions (x, y, z): "
+			<< properties.maxThreadsDim[0] << ", "
+			<< properties.maxThreadsDim[1] << ", "
+			<< properties.maxThreadsDim[2] << endl;
+		cout << "Max grid dimensions (x, y, z): "
+			<< properties.maxGridSize[0] << ", "
+			<< properties.maxGridSize[1] << ", "
+			<< properties.maxGridSize[2] << endl;
+		cout << "Max threads per multiprocessor: " << properties.maxThreadsPerMultiProcessor << endl;
+		cout << "Shared memory per block: " << properties.sharedMemPerBlock << " bytes" << endl;
+		cout << "Registers per block: " << properties.regsPerBlock << endl;
+		cout << "Total global memory: "
+			<< (properties.totalGlobalMem / (1024 * 1024)) << " MB" << endl;
+	}
+
+	cout << "==============================================================" << endl;
 }

@@ -9,37 +9,37 @@ private:
 
 public:
 
-	Vector3(float f = 0, float s = 0, float t = 0) : first(f), second(s), third(t)
+	__host__ __device__ Vector3(float f = 0, float s = 0, float t = 0) : first(f), second(s), third(t)
 	{
 
 	}
 
-	float getFirst(void) const
+	__host__ __device__ float getFirst(void) const
 	{
 		return(first);
 	}
 
-	float getSecond(void) const
+	__host__ __device__ float getSecond(void) const
 	{
 		return(second);
 	}
 
-	float getThird(void) const
+	__host__ __device__ float getThird(void) const
 	{
 		return(third);
 	}
 
-	void setFirst(float val)
+	__host__ __device__ void setFirst(float val)
 	{
 		first = val;
 	}
 
-	void setSecond(float val)
+	__host__ __device__ void setSecond(float val)
 	{
 		second = val;
 	}
 
-	void setThird(float val)
+	__host__ __device__ void setThird(float val)
 	{
 		third = val;
 	}
