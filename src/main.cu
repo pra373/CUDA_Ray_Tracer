@@ -3,29 +3,33 @@
 #include<cuda.h>
 #include<cuda_runtime.h>
 #include <fstream>
-#include<Sphere.h>
-#include<Kernel.h>
+#include"Sphere.h"
 
 
 using std::cout;
 using std::endl;
 using std::string;
 
-#define NUMBER_OF_SPHERES 20
 #define rnd( x ) (x * rand() / RAND_MAX)
 
-#define IMAGE_WIDTH 3840
-#define IMAGE_HEIGHT 2160
+#define IMAGE_WIDTH 8192
+#define IMAGE_HEIGHT 8192
+#define NUMBER_OF_SPHERES 40
 
 //function declarations
 
 void saveImagePPM(const char*, unsigned char*, int, int);
 void printCudaDeviceSpecs(void);
+__global__ void ComputeRayTracingImage(unsigned char*, int, int);  // CUDA Kernel Declaration
+
+// define constant memory on CUDA device
+
+__constant__ Sphere arrayOfSpheresOnConstantMenory[NUMBER_OF_SPHERES];
+
 
 int main(void)
 {	
 	Sphere* arrayOfSpheres_host;
-	Sphere* arrayOfSpheres_device;
 
 	unsigned char* imagePointer_dev;
 	unsigned char* imagePointer_host;
@@ -66,13 +70,16 @@ int main(void)
 
 		radius = rnd(100.0f) + 20;
 
-		Vector3 col(r, g, b);
-		Vector3 pos(x, y, z);
+		arrayOfSpheres_host[i].colR = r;
+		arrayOfSpheres_host[i].colG = g;
+		arrayOfSpheres_host[i].colB = b;
 
+		arrayOfSpheres_host[i].posX = x;
+		arrayOfSpheres_host[i].posY = y;
+		arrayOfSpheres_host[i].posZ = z;
+		
 
-		arrayOfSpheres_host[i].setPosition(pos);
-		arrayOfSpheres_host[i].setColor(col);
-		arrayOfSpheres_host[i].setRadius(radius);
+		arrayOfSpheres_host[i].radius = radius;
 
 	}
 
@@ -80,7 +87,7 @@ int main(void)
 
 	size_t sizeOfSphereArray = sizeof(Sphere) * NUMBER_OF_SPHERES;
 	
-	error = cudaMalloc((void**)&arrayOfSpheres_device, sizeOfSphereArray);
+	/*error = cudaMalloc((void**)&arrayOfSpheres_device, sizeOfSphereArray);
 
 	if (error != cudaSuccess)
 	{
@@ -89,15 +96,17 @@ int main(void)
 		cout << "CUDA Error: " << cudaGetErrorString(error) << endl;
 
 		exit(0);
-	}
+	}*/
+
+
 
 	//copy spheres array from CPU to GPU
 
-	error = cudaMemcpy(arrayOfSpheres_device, arrayOfSpheres_host, sizeOfSphereArray, cudaMemcpyHostToDevice);
+	error = cudaMemcpyToSymbol(arrayOfSpheresOnConstantMenory, arrayOfSpheres_host, sizeOfSphereArray);
 
 	if (error != cudaSuccess)
 	{
-		cout << "Failed to copy " << NUMBER_OF_SPHERES << " spheres from CPU memory to GPU memory !" << endl;
+		cout << "Failed to copy " << NUMBER_OF_SPHERES << " spheres from CPU memory to GPU constant memory !" << endl;
 
 		cout << "CUDA Error: " << cudaGetErrorString(error) << endl;
 
@@ -139,7 +148,7 @@ int main(void)
 
 	// call the kernel
 
-	ComputeRayTracingImage<<<gridDim, blockDim>>>(imagePointer_dev, arrayOfSpheres_device, IMAGE_WIDTH, IMAGE_HEIGHT);
+	ComputeRayTracingImage<<<gridDim, blockDim>>>(imagePointer_dev, IMAGE_WIDTH, IMAGE_HEIGHT);
 
 	// Copy rendered image from GPU memory back to CPU memory
 
@@ -156,7 +165,6 @@ int main(void)
 
 	// free allocated memory
 
-	cudaFree(arrayOfSpheres_device);
 	cudaFree(imagePointer_dev);
 
 	delete [] arrayOfSpheres_host;
@@ -166,7 +174,64 @@ int main(void)
 	return(0);
 }
 
-#include <fstream>
+//CUDA - Kernel
+
+__global__ void ComputeRayTracingImage(unsigned char* imagePointer_dev, int imageWidth, int imageHeight)
+{
+	// Find which pixel this CUDA thread is responsible for
+
+	int idx = threadIdx.x + blockIdx.x * blockDim.x;
+	int idy = threadIdx.y + blockIdx.y * blockDim.y;
+
+	// Ignore extra threads outside image size
+
+	if (idx >= imageWidth || idy >= imageHeight)
+	{
+		return;
+	}
+
+	// RGB image buffer index
+
+	int offset = (idy * imageWidth + idx) * 3;
+
+	// shift origin of the image to centre pixel
+
+	float ox = (idx - (imageWidth / 2.0f));
+	float oy = (idy - (imageHeight / 2.0f));
+
+	float r = 0.0f;
+	float g = 0.0f;
+	float b = 0.0f;
+
+	float closestHitDistance = -INF;
+
+	// shoot ray and check how many spheres the ray hit.
+
+	for (int i = 0; i < NUMBER_OF_SPHERES; i++)
+	{
+		float normal;
+
+		float t = arrayOfSpheresOnConstantMenory[i].hit(ox, oy, &normal);
+
+		if (t > closestHitDistance)
+		{
+			float colorScale = normal;
+
+			r = arrayOfSpheresOnConstantMenory[i].colR * colorScale;
+			g = arrayOfSpheresOnConstantMenory[i].colG * colorScale;
+			b = arrayOfSpheresOnConstantMenory[i].colB * colorScale;
+
+			closestHitDistance = t;
+
+		}
+	}
+
+	// Store final RGB value into image buffer
+
+	imagePointer_dev[offset + 0] = (unsigned char)(r * 255);
+	imagePointer_dev[offset + 1] = (unsigned char)(g * 255);
+	imagePointer_dev[offset + 2] = (unsigned char)(b * 255);
+}
 
 void saveImagePPM(const char* filename, unsigned char* image, int width, int height)
 {
